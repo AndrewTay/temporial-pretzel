@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<!-- saved from url=(0082) -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Temporial | Browser-Native Previs &amp; Structural Render Bridge</title>
+<meta name="description" content="Temporial is a browser-native 3D previs workspace and structural render bridge for controlled generative video.">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+  :root{
+    --bg:#06080d; --bg-2:#0a0d14;
+    --panel:rgba(13,17,25,.55); --panel-2:rgba(18,23,33,.66);
+    --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.18);
+    --ink:#eef2f7; --ink-2:#aeb9c9; --ink-3:#79849a;
+    --accent:#7cc4ff; --accent-2:#a9b8ff; --warm:#f0c478;
+    --grad:linear-gradient(100deg,#bfe4ff 0%,#7cc4ff 42%,#a9b8ff 100%);
+    --maxw:1120px;
+    --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --glass-blur:blur(16px) saturate(140%);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth;scroll-padding-top:72px}
+  body{font-family:var(--font);background:var(--bg);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+
+  /* ============ SCROLL VIDEO BACKGROUND ============ */
+  #scroll-video-container{position:fixed;inset:0;z-index:-4;background:#06080d;overflow:hidden}
+  #scroll-video-container canvas,
+  #scroll-video-container video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  /* readability scrim over the video — keeps motion alive, keeps text crisp */
+  .video-scrim{position:fixed;inset:0;z-index:-3;pointer-events:none;
+    background:
+      linear-gradient(180deg, rgba(6,8,13,.84) 0%, rgba(6,8,13,.50) 15%, rgba(6,8,13,.56) 45%, rgba(6,8,13,.68) 78%, rgba(6,8,13,.94) 100%);}
+  .bg-glow{position:fixed;inset:0;z-index:-2;pointer-events:none;
+    background:
+      radial-gradient(820px 520px at 80% -8%, rgba(124,196,255,.12), transparent 60%),
+      radial-gradient(720px 600px at 4% 14%, rgba(169,184,255,.08), transparent 60%),
+      radial-gradient(900px 700px at 50% 118%, rgba(124,196,255,.06), transparent 60%);}
+  .bg-vignette{position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:radial-gradient(125% 125% at 50% 0%, transparent 56%, rgba(0,0,0,.55) 100%);}
+  #particles{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:200;background:var(--grad);box-shadow:0 0 12px rgba(124,196,255,.6);transition:width .08s linear}
+
+  /* ============ NAV ============ */
+  nav{position:fixed;top:0;left:0;right:0;z-index:120;border-bottom:1px solid transparent;transition:background .35s,border-color .35s,backdrop-filter .35s}
+  nav.scrolled{background:rgba(6,8,13,.62);backdrop-filter:blur(16px) saturate(140%);-webkit-backdrop-filter:blur(16px) saturate(140%);border-bottom:1px solid var(--line)}
+  .nav-in{max-width:var(--maxw);margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+  .brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:var(--ink)}
+  .brand img{width:26px;height:26px;display:block;filter:drop-shadow(0 0 10px rgba(124,196,255,.45))}
+  .brand .wm{font-weight:600;font-size:1.04rem;letter-spacing:.04em}
+  .nav-links{display:flex;gap:30px;align-items:center}
+  .nav-links a{color:var(--ink-2);text-decoration:none;font-size:.83rem;font-weight:500;transition:color .25s}
+  .nav-links a:hover{color:var(--ink)}
+  .nav-cta{font-family:var(--mono);font-size:.76rem;letter-spacing:.04em;color:var(--ink);border:1px solid var(--line-2);padding:9px 16px;border-radius:8px;text-decoration:none;transition:.25s}
+  .nav-cta:hover{border-color:var(--accent);box-shadow:0 0 26px rgba(124,196,255,.18);color:#fff}
+
+  /* ============ TYPE / LAYOUT ============ */
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  section{padding:clamp(82px,12vh,148px) 0;position:relative;z-index:1}
+  .eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);display:inline-flex;align-items:center;gap:10px;margin-bottom:22px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--accent);opacity:.7}
+  h1,h2,h3{font-weight:600;letter-spacing:-.025em;line-height:1.08}
+  h2.title{font-size:clamp(1.95rem,4vw,3.05rem);max-width:18ch;margin-bottom:22px;text-shadow:0 2px 34px rgba(0,0,0,.5)}
+  .lead{font-size:clamp(1.08rem,1.7vw,1.33rem);color:var(--ink-2);max-width:62ch;font-weight:300;text-shadow:0 1px 18px rgba(0,0,0,.4)}
+  .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .muted{color:var(--ink-2)} .dim{color:var(--ink-3)}
+  em{font-style:italic;color:var(--ink)}
+  sup.cite{font-family:var(--mono);font-size:.6em;font-weight:500}
+  sup.cite a{color:var(--accent);text-decoration:none;padding:0 1px} sup.cite a:hover{text-decoration:underline}
+
+  /* glass surface shared by content panels */
+  .card,.vs .col,.pat,.pillar,.stat,.role,.wedge,.explosion,.equity,.nope,.tlwrap,.pillars-base{
+    background:var(--panel);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur)}
+  @supports not ((backdrop-filter:blur(2px)) or (-webkit-backdrop-filter:blur(2px))){
+    .card,.vs .col,.pat,.pillar,.stat,.role,.wedge,.explosion,.equity,.nope,.tlwrap,.pillars-base{background:rgba(9,12,19,.92)}
+    nav.scrolled{background:rgba(6,8,13,.96)}
+  }
+
+  /* ============ HERO ============ */
+  .hero{min-height:100svh;display:flex;align-items:center;justify-content:center;text-align:center;padding:120px 0 90px;position:relative}
+  .hero-inner{max-width:60rem;display:flex;flex-direction:column;align-items:center}
+  .hero h1{font-size:clamp(2.5rem,6vw,4.7rem);margin:8px 0 26px;max-width:16ch;text-shadow:0 4px 50px rgba(0,0,0,.55)}
+  .hero .lead{margin:0 auto 36px;max-width:56ch}
+  .cta-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+  .btn{font-size:.95rem;font-weight:500;text-decoration:none;padding:14px 24px;border-radius:10px;display:inline-flex;align-items:center;gap:9px;transition:.28s;cursor:pointer;border:1px solid transparent}
+  .btn-primary{background:var(--grad);color:#06121f;font-weight:600;box-shadow:0 10px 40px -12px rgba(124,196,255,.6)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 52px -12px rgba(124,196,255,.8)}
+  .btn-ghost{border-color:var(--line-2);color:var(--ink);background:rgba(10,13,20,.32);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .btn-ghost:hover{border-color:var(--accent);background:rgba(124,196,255,.08)}
+  .wave-strip{margin-top:60px;display:flex;align-items:center;gap:16px 22px;flex-wrap:wrap;justify-content:center;color:var(--ink-3)}
+  .wave-strip .lbl{font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase}
+  .wave-strip .names{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;font-size:.86rem;color:var(--ink-2);font-weight:500}
+  .wave-strip .names span{position:relative;padding-left:16px}
+  .wave-strip .names span::before{content:"";position:absolute;left:0;top:50%;width:5px;height:5px;border-radius:50%;background:var(--accent);transform:translateY(-50%);opacity:.85;box-shadow:0 0 8px rgba(124,196,255,.7)}
+  .scroll-cue{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--ink-3);font-family:var(--mono);font-size:.64rem;letter-spacing:.22em;text-transform:uppercase}
+  .scroll-cue svg{width:22px;height:22px;animation:bounce 1.6s infinite}
+  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+  /* ============ GRIDS / CARDS ============ */
+  .g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+  .g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(265px,1fr));gap:20px}
+  .card{border:1px solid var(--line);border-radius:16px;padding:30px;position:relative;transition:transform .4s cubic-bezier(.16,1,.3,1),border-color .4s,background .4s}
+  .card:hover{transform:translateY(-4px);border-color:var(--line-2);background:var(--panel-2)}
+  .card .k{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:14px;display:block}
+  .card h3{font-size:1.22rem;margin-bottom:9px}
+  .card p{color:var(--ink-2);font-size:.96rem;font-weight:300}
+  .card .big{font-family:var(--mono);font-size:2rem;font-weight:600;letter-spacing:-.02em;margin-bottom:4px;color:var(--ink)}
+
+  /* ============ CONVERGENCE MOMENT ============ */
+  .moment{position:relative;text-align:center;padding:clamp(96px,17vh,190px) 0;overflow:hidden}
+  .moment::before{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(940px,94vw);height:560px;pointer-events:none;z-index:-1;
+    background:radial-gradient(58% 58% at 50% 50%, rgba(124,196,255,.20), transparent 70%);animation:momentGlow 7s ease-in-out infinite}
+  @keyframes momentGlow{0%,100%{opacity:.5}50%{opacity:1}}
+  .moment-inner{max-width:780px;margin:0 auto;position:relative}
+  .moment-kicker{display:inline-flex;align-items:center;gap:14px;font-family:var(--mono);font-size:.74rem;letter-spacing:.34em;text-transform:uppercase;color:var(--accent);margin-bottom:34px}
+  .moment-kicker::before,.moment-kicker::after{content:"";width:40px;height:1px}
+  .moment-kicker::before{background:linear-gradient(90deg,transparent,var(--accent))}
+  .moment-kicker::after{background:linear-gradient(90deg,var(--accent),transparent)}
+  .moment-quote{font-size:clamp(1.55rem,3.3vw,2.5rem);font-weight:300;line-height:1.34;letter-spacing:-.02em;color:var(--ink);text-shadow:0 2px 40px rgba(0,0,0,.6)}
+  .moment-quote .nm{font-weight:500;white-space:nowrap;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .moment-punch{font-size:clamp(2.5rem,6.4vw,4.6rem);font-weight:700;letter-spacing:-.035em;line-height:1.04;margin-top:22px;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 6px 40px rgba(124,196,255,.4))}
+  .moment-names{display:flex;justify-content:center;flex-wrap:wrap;gap:12px 34px;margin-top:54px;padding-top:28px;border-top:1px solid var(--line)}
+  .moment-names span{font-family:var(--mono);font-size:.82rem;color:var(--ink-3);letter-spacing:.02em}
+  .moment-names b{color:var(--ink);font-weight:600}
+
+  /* ============ COMPARISON ============ */
+  .vs{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+  .vs .col{border:1px solid var(--line);border-radius:16px;padding:26px}
+  .vs .col.new{border-color:rgba(124,196,255,.36);background:linear-gradient(180deg,rgba(124,196,255,.10),var(--panel))}
+  .vs .tag{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:18px}
+  .vs .new .tag{color:var(--accent)}
+  .vs .metric{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .vs .metric:last-child{border-bottom:none}
+  .vs .metric .m-l{color:var(--ink-2);font-size:.9rem}
+  .vs .metric .m-v{font-family:var(--mono);font-weight:600;font-size:1.18rem;white-space:nowrap}
+  .vs .now .m-v{color:var(--ink)} .vs .new .m-v{color:var(--accent)}
+
+  /* ============ 1,000x SUPPLY-EXPLOSION EXHIBIT ============ */
+  .explosion{margin-top:40px;border:1px solid var(--line);border-radius:20px;
+    padding:clamp(26px,3.4vw,44px);display:grid;grid-template-columns:.82fr 1.18fr;gap:36px;align-items:center}
+  .exp-num{font-family:var(--mono);font-size:clamp(3rem,7.4vw,5.4rem);font-weight:700;letter-spacing:-.04em;line-height:1;display:flex;align-items:baseline;filter:drop-shadow(0 6px 40px rgba(124,196,255,.34))}
+  .exp-num .x{color:var(--accent);font-weight:400;margin-left:.04em}
+  .exp-label{margin-top:18px;color:var(--ink-2);font-size:1.02rem;font-weight:300;line-height:1.6;max-width:34ch}
+  .exp-right{min-width:0}
+  .exp-chart{width:100%;height:auto;display:block;filter:drop-shadow(0 8px 30px rgba(124,196,255,.18))}
+  .exp-cap{margin-top:10px;text-align:center;font-size:.84rem;color:var(--ink-3);font-weight:300}
+  @media(max-width:820px){.explosion{grid-template-columns:1fr;gap:26px}}
+
+  /* ============ PATTERN ============ */
+  .pattern{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:20px;margin-top:8px}
+  .pat{border:1px solid var(--line);border-radius:16px;padding:28px}
+  .pat .era{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase}
+  .pat h3{font-size:1.15rem;margin:6px 0 14px}
+  .pat .mult{font-family:var(--mono);font-size:2.1rem;font-weight:600;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.02em}
+  .pat .desc{color:var(--ink-2);font-size:.9rem;font-weight:300;margin-top:6px}
+
+  /* ============ WEDGE ============ */
+  .wedge{border:1px solid rgba(124,196,255,.32);border-radius:20px;padding:clamp(28px,4vw,46px);margin-top:30px;position:relative;overflow:hidden}
+  .wedge::after{content:"";position:absolute;top:-40%;right:-20%;width:60%;height:180%;background:radial-gradient(circle,rgba(124,196,255,.14),transparent 60%);pointer-events:none}
+  .wedge .eq{font-family:var(--mono);font-size:clamp(1.05rem,2.3vw,1.6rem);font-weight:500;letter-spacing:-.01em;line-height:1.5;position:relative;z-index:1}
+  .wedge .eq .x{color:var(--ink-3)} .wedge .eq .y{color:var(--accent)}
+  .wedge p{color:var(--ink-2);margin-top:18px;max-width:64ch;font-weight:300;position:relative;z-index:1}
+
+  /* ============ PILLARS ============ */
+  .pillars{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-top:10px;align-items:stretch}
+  .pillar{position:relative;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px 12px 3px 3px;padding:26px 18px 22px;min-height:252px;transition:transform .45s cubic-bezier(.16,1,.3,1),border-color .45s,background .45s}
+  .pillar::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0;background:linear-gradient(90deg,var(--accent),var(--accent-2));opacity:.5;transition:opacity .45s}
+  .pillar:hover{transform:translateY(-6px);border-color:var(--line-2);background:var(--panel-2)}
+  .pillar:hover::before{opacity:1}
+  .pillar .idx{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;color:var(--accent)}
+  .pillar h3{font-size:1rem;font-weight:600;line-height:1.22;margin:13px 0 0;letter-spacing:-.01em}
+  .pillar .pdesc{margin-top:auto;padding-top:15px;border-top:1px solid var(--line)}
+  .pillar .pdesc p{font-size:.82rem;line-height:1.5;color:var(--ink-2);font-weight:300}
+  .pillars-base{margin-top:14px;border:1px solid var(--line);border-top:2px solid rgba(124,196,255,.55);border-radius:3px 3px 13px 13px;padding:20px 26px;display:flex;align-items:center;justify-content:center;gap:8px 20px;flex-wrap:wrap;text-align:center}
+  .pillars-base .bw{font-family:var(--mono);font-weight:600;letter-spacing:.2em;font-size:.82rem;color:var(--ink)}
+  .pillars-base .bsub{font-family:var(--mono);font-size:.76rem;color:var(--ink-3);letter-spacing:.03em}
+  .pillars-base .bsub .ar{color:var(--accent)}
+  @media (max-width:1040px){.pillars{grid-template-columns:repeat(4,1fr)}}
+  @media (max-width:720px){.pillars{grid-template-columns:repeat(2,1fr)}.pillar{min-height:210px}}
+  @media (max-width:420px){.pillars{grid-template-columns:1fr}.pillar{min-height:0}}
+
+  /* ============ STATS ============ */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:8px}
+  .stat{border:1px solid var(--line);border-radius:16px;padding:32px 26px}
+  .stat .v{font-family:var(--mono);font-size:clamp(1.9rem,3.4vw,2.7rem);font-weight:600;letter-spacing:-.02em}
+  .stat .l{color:var(--ink-2);font-size:.9rem;margin-top:8px;font-weight:300}
+  .stat .src{font-family:var(--mono);font-size:.66rem;color:var(--ink-3);margin-top:10px;letter-spacing:.04em}
+
+  /* ============ TIMELINE ============ */
+  .tlwrap{border:1px solid var(--line);border-radius:20px;padding:clamp(28px,3.6vw,44px);margin-top:18px}
+  .tl{position:relative}
+  .tl::before{content:"";position:absolute;left:8px;top:9px;bottom:14px;width:2px;border-radius:2px;transform:translateX(-1px);background:linear-gradient(var(--accent),rgba(124,196,255,.14) 88%,transparent)}
+  .tl-item{position:relative;padding:0 0 40px 46px}
+  .tl-item:last-child{padding-bottom:0}
+  .tl-item .dot{position:absolute;left:0;top:3px;width:16px;height:16px;border-radius:50%;background:var(--bg);border:2px solid var(--accent);box-shadow:0 0 14px rgba(124,196,255,.5);z-index:1}
+  .tl-item .dot::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--accent);opacity:.55}
+  .tl-item .ph{font-family:var(--mono);font-size:.74rem;letter-spacing:.1em;color:var(--accent);text-transform:uppercase}
+  .tl-item h3{font-size:1.28rem;margin:7px 0 8px}
+  .tl-item p{color:var(--ink-2);font-weight:300;max-width:60ch}
+
+  /* ============ ROLES ============ */
+  .roles{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:10px}
+  .role{border:1px solid var(--line);border-radius:18px;padding:30px;position:relative;transition:.4s}
+  .role:hover{border-color:var(--line-2);transform:translateY(-4px)}
+  .role.mine{border-color:rgba(124,196,255,.34);background:linear-gradient(180deg,rgba(124,196,255,.09),var(--panel))}
+  .role .seat{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:6px}
+  .role h3{font-size:1.3rem;margin-bottom:6px}
+  .role .who{font-size:.84rem;color:var(--ink-3);margin-bottom:16px;font-family:var(--mono);letter-spacing:.02em}
+  .role ul{list-style:none}
+  .role li{color:var(--ink-2);font-size:.92rem;font-weight:300;padding:7px 0 7px 20px;position:relative}
+  .role li::before{content:"\203A";position:absolute;left:0;color:var(--accent);font-weight:600}
+  .equity{margin-top:20px;border:1px solid var(--line);border-radius:18px;padding:30px;display:flex;gap:28px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+  .equity .split{display:flex;align-items:center;gap:18px}
+  .equity .third{text-align:center}
+  .equity .third .p{font-family:var(--mono);font-size:1.9rem;font-weight:600;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .equity .third .who{font-size:.74rem;color:var(--ink-3);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+  .equity .x{color:var(--ink-3);font-size:1.2rem}
+  .equity .note{color:var(--ink-2);font-size:.92rem;font-weight:300;max-width:42ch}
+  .equity .note b{color:var(--ink);font-weight:600}
+  .nope{margin-top:20px;border:1px dashed var(--line-2);border-radius:16px;padding:26px 30px;background:rgba(240,196,120,.05)}
+  .nope p{font-size:clamp(1.02rem,1.8vw,1.2rem);font-weight:300;color:var(--ink)}
+  .nope p b{font-weight:600}
+
+  /* ============ PROOF ============ */
+  .proof-sub{font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);margin:56px 0 16px;display:flex;align-items:center;gap:10px}
+  .proof-sub::before{content:"";width:18px;height:1px;background:var(--accent);opacity:.7}
+  .proto-panel{display:grid;grid-template-columns:1.02fr 1fr;gap:clamp(22px,3vw,38px);align-items:center;border:1px solid rgba(124,196,255,.30);border-radius:20px;padding:clamp(20px,2.6vw,34px);background:linear-gradient(180deg,rgba(124,196,255,.07),var(--panel));overflow:hidden}
+  .proto-figure{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#0a0d14;box-shadow:0 20px 60px -24px rgba(0,0,0,.85)}
+  .proto-figure video{width:100%;display:block;aspect-ratio:4/3;object-fit:cover;background:#0a0d14}
+  .proto-figure figcaption{position:absolute;left:12px;bottom:10px;font-family:var(--mono);font-size:.62rem;letter-spacing:.03em;color:var(--ink-2);background:rgba(6,8,13,.62);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:4px 9px;border-radius:7px;border:1px solid var(--line)}
+  .proto-live{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:13px}
+  .proto-copy h3{font-size:1.35rem;margin-bottom:10px;letter-spacing:-.02em}
+  .proto-copy p{color:var(--ink-2);font-size:.95rem;font-weight:300}
+  .proto-copy p b{color:var(--ink);font-weight:600}
+  .proto-copy code{font-family:var(--mono);font-size:.86em;color:var(--accent)}
+  .paper-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .paper-links a{font-family:var(--mono);font-size:.7rem;letter-spacing:.02em;color:var(--ink-2);text-decoration:none;border:1px solid var(--line-2);border-radius:999px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;transition:.25s}
+  .paper-links a:hover{border-color:var(--accent);color:#fff;box-shadow:0 0 20px rgba(124,196,255,.18)}
+  .paper-links a .ax{color:var(--accent)}
+  .proof .stat-claim{color:var(--ink-2);font-size:.92rem;font-weight:300;margin-top:6px}
+  .proof .stat-claim b{color:var(--ink);font-weight:600}
+  .why-panel{border:1px solid var(--line);border-radius:20px;padding:clamp(24px,3vw,38px);margin-top:4px;background:var(--panel);display:grid;grid-template-columns:minmax(180px,.7fr) 1.3fr;gap:clamp(20px,3vw,40px);align-items:start}
+  .why-panel .who{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;color:var(--accent);text-transform:uppercase;margin-bottom:10px}
+  .why-panel .why-head h3{font-size:1.45rem;letter-spacing:-.02em;max-width:16ch}
+  .why-list{display:grid;gap:14px}
+  .why-list .row{display:grid;grid-template-columns:120px 1fr;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .why-list .row:last-child{border-bottom:none;padding-bottom:0}
+  .why-list .rk{font-family:var(--mono);font-size:.72rem;letter-spacing:.05em;color:var(--accent);text-transform:uppercase;padding-top:2px}
+  .why-list .rv{color:var(--ink-2);font-size:.93rem;font-weight:300}
+  .why-list .rv b{color:var(--ink);font-weight:600}
+  @media(max-width:820px){.proto-panel{grid-template-columns:1fr}.why-panel{grid-template-columns:1fr;gap:20px}.why-list .row{grid-template-columns:1fr;gap:4px}}
+  /* pipeline showcase */
+  .proto-lead{max-width:780px;margin-top:34px}
+  .showcase{margin-top:28px;display:grid;gap:22px}
+  .pipe-row{border:1px solid var(--line);border-radius:18px;padding:clamp(16px,2vw,24px);background:var(--panel)}
+  .pipe-head{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .pipe-head .pn{font-weight:600;font-size:1.06rem;letter-spacing:-.01em}
+  .pipe-head .pd{font-family:var(--mono);font-size:.71rem;letter-spacing:.05em;color:var(--accent);text-transform:uppercase}
+  .pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .frame{margin:0;min-width:0}
+  .frame .media{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#0a0d14}
+  .frame .media>img,.frame .media>video{width:100%;height:100%;display:block;object-fit:cover}
+  .frame .media>model-viewer{width:100%;height:100%;display:block;background:radial-gradient(circle at 50% 38%,#121826,#080b11);--poster-color:transparent;--progress-bar-color:var(--accent)}
+  .frame.is3d .media::after{content:"360°· drag";position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:.56rem;letter-spacing:.06em;color:var(--ink-2);background:rgba(6,8,13,.55);border:1px solid var(--line);border-radius:6px;padding:2px 6px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);pointer-events:none}
+  .frame .step{display:block;margin-top:9px;font-family:var(--mono);font-size:.65rem;letter-spacing:.04em;color:var(--accent);text-transform:uppercase}
+  .frame .cap{display:block;margin-top:3px;font-size:.79rem;color:var(--ink-2);font-weight:300;line-height:1.4}
+  @media(max-width:900px){.pipe{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:560px){.pipe{grid-template-columns:repeat(2,1fr)}}
+
+  /* ============ FINAL ============ */
+  .final{text-align:center;position:relative;overflow:hidden}
+  .final .echo{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:min(70vw,520px);opacity:.10;pointer-events:none;z-index:-1;filter:drop-shadow(0 0 40px rgba(124,196,255,.4))}
+  .final h2{font-size:clamp(2.2rem,5vw,3.6rem);max-width:20ch;margin:0 auto 22px;text-shadow:0 3px 50px rgba(0,0,0,.55)}
+  .final .lead{margin:0 auto 38px}
+  .final .small{margin-top:22px;color:var(--ink-3);font-size:.84rem;font-family:var(--mono);letter-spacing:.03em}
+
+  /* ============ REFS / FOOTER ============ */
+  .refs{border-top:1px solid var(--line);padding-top:46px}
+  .refs h4{font-family:var(--mono);font-size:.76rem;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:22px}
+  .ref-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:8px 30px}
+  .ref-grid a{color:var(--ink-2);text-decoration:none;font-size:.82rem;padding:8px 0;display:flex;gap:10px;border-bottom:1px solid rgba(255,255,255,.05);transition:color .25s}
+  .ref-grid a:hover{color:var(--accent)}
+  .ref-grid a .n{font-family:var(--mono);color:var(--accent);flex-shrink:0}
+  footer{border-top:1px solid var(--line);padding:40px 0;margin-top:40px;position:relative;z-index:1}
+  .foot-in{max-width:var(--maxw);margin:0 auto;padding:0 24px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+  .foot-in .brand img{width:24px;height:24px;filter:drop-shadow(0 0 10px rgba(124,196,255,.45))}
+  .foot-in .brand .wm{font-size:1rem}
+  .foot-in .t{color:var(--ink-3);font-size:.8rem;font-family:var(--mono);letter-spacing:.04em;max-width:52ch}
+
+  /* ============ REVEAL ============ */
+  .reveal{opacity:0;transform:translateY(20px);transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}
+  .reveal.in{opacity:1;transform:none}
+  .blurin{opacity:0;transform:translateY(30px);filter:blur(10px);transition:opacity 1.1s cubic-bezier(.16,1,.3,1),transform 1.1s cubic-bezier(.16,1,.3,1),filter 1.1s cubic-bezier(.16,1,.3,1)}
+  .blurin.in{opacity:1;transform:none;filter:blur(0)}
+
+  @media (max-width:900px){
+    .roles{grid-template-columns:1fr}
+    .nav-links{display:none}
+  }
+  @media (max-width:620px){
+    .vs{grid-template-columns:1fr}
+    .equity{flex-direction:column;align-items:flex-start}
+    .nav-cta{display:none}
+    section{padding:74px 0}
+  }
+  /* ============ MOBILE POLISH ============ */
+  @media (max-width:600px){
+    .wrap{padding:0 18px}
+    .nav-in{padding:12px 18px}
+    .foot-in{padding:0 18px;flex-direction:column;align-items:flex-start;gap:16px}
+    .foot-in .t{max-width:100%}
+    section{padding:62px 0}
+    .hero{padding:96px 0 60px}
+    .hero h1{margin:6px 0 20px}
+    .hero .lead{margin-bottom:30px}
+    .wave-strip{margin-top:38px}
+    .cta-row{width:100%}
+    .cta-row .btn{width:100%;justify-content:center;padding:15px 22px}
+    .card{padding:24px}
+    .vs .col{padding:22px}
+    .stat{padding:26px 22px}
+    .role{padding:24px}
+    .equity{padding:24px}
+    .nope{padding:22px 20px}
+    .moment{padding:80px 0}
+    .moment-kicker{margin-bottom:26px}
+    .moment-names{margin-top:34px;padding-top:22px;gap:10px 22px}
+    .proof-sub{margin:40px 0 14px}
+  }
+  @media (max-width:400px){
+    .wrap{padding:0 15px}
+    .nav-in{padding:11px 15px}
+    .foot-in{padding:0 15px}
+    .brand .wm{font-size:.98rem}
+    .moment-names{gap:8px 16px}
+    .moment-names span{font-size:.76rem}
+    .paper-links a{padding:7px 12px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{scroll-behavior:auto!important}
+    .reveal,.blurin{opacity:1;transform:none;filter:none;transition:none}
+    .progress{transition:none}
+    .moment::before,.scroll-cue svg{animation:none}
+    .moment::before{opacity:.85}
+  }
+</style>
+</head>
+<body id="top">
+
+<!-- Scroll Video Background -->
+<div id="scroll-video-container">
+  <canvas id="video-canvas"></canvas>
+  <video id="video-fallback" muted playsinline preload="auto" src="assets/flower_video.mp4"></video>
+</div>
+<div class="video-scrim"></div>
+<div class="bg-glow"></div>
+<div class="bg-vignette"></div>
+<canvas id="particles" width="1920" height="945"></canvas>
+<div class="progress" id="progress" style="width: 81.2184%;"></div>
+
+<!-- Navigation -->
+<nav id="nav" class="scrolled">
+  <div class="nav-in">
+    <a class="brand" href="#top">
+      <img src="assets/logo-mark.svg" alt="Temporial logo">
+      <span class="wm">Temporial</span>
+    </a>
+    <div class="nav-links">
+      <a href="#why">Why now</a>
+      <a href="#wedge">The wedge</a>
+      <a href="#market">Market</a>
+      <a href="#team">The seats</a>
+    </div>
+    <a class="nav-cta" href="#ask">Let's talk →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap hero-inner">
+    <h1 class="reveal in">Generative video has a consistency problem. <span class="grad">We solve it.</span></h1>
+    <p class="lead reveal in">Temporial is a browser-native 3D previs workspace and structural render bridge that locks spatial composition and asset consistency.</p>
+    <div class="cta-row reveal in">
+      <a class="btn btn-primary" href="#why">Read the thesis →</a>
+    </div>
+    <div class="wave-strip reveal in">
+      <span class="lbl">The same wave</span>
+      <div class="names"><span>World Labs</span><span>NVIDIA Cosmos</span><span>AMI Labs</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- WHY NOW -->
+<section id="why">
+  <div class="wrap">
+    <span class="eyebrow reveal in">Why now · 01</span>
+    <h2 class="title reveal in">The smartest money in AI just left text behind.</h2>
+    <p class="lead reveal in">In eighteen months, the people who built modern AI stopped talking about words and started building <em>worlds</em>: spatial, physical, embodied. The capital has already moved.</p>
+    <div class="g3" style="margin-top:42px">
+      <div class="card reveal in">
+        <span class="k">Yann LeCun · AMI Labs</span>
+        <div class="big">$1.03B</div>
+        <h3>He left Meta to bet against LLMs.</h3>
+        <p>Meta's former chief AI scientist walked after 12 years to build world models, the systems that predict the consequences of physical actions. Raised at a $3.5B valuation, backed by Bezos and NVIDIA.<sup class="cite"><a href="#r2">2</a></sup></p>
+      </div>
+      <div class="card reveal in">
+        <span class="k">Fei-Fei Li · World Labs</span>
+        <div class="big">$1.2B+</div>
+        <h3>"From words to worlds."</h3>
+        <p>The godmother of modern AI raised over $1.2B for spatial intelligence, then shipped Marble, a model that turns an image into a navigable 3D world. Autodesk wrote its largest-ever startup check.<sup class="cite"><a href="#r1">1</a></sup></p>
+      </div>
+      <div class="card reveal in">
+        <span class="k">Jensen Huang · NVIDIA</span>
+        <div class="big">Cosmos</div>
+        <h3>The era of physical AI.</h3>
+        <p>NVIDIA built an entire foundation-model platform for "physical AI": robots and autonomous machines that perceive, plan and act. Figure, 1X and Agility are already training on it.<sup class="cite"><a href="#r3">3</a></sup></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONVERGENCE MOMENT -->
+<section class="moment">
+  <div class="wrap">
+    <div class="moment-inner blurin in">
+      <span class="moment-kicker">The convergence</span>
+      <p class="moment-quote">Inside eighteen months, all three placed the same bet on what comes next. That's not a coincidence.</p>
+      <p class="moment-punch">It's a starting gun.</p>
+      <div class="moment-names">
+        <span><b>Yann LeCun</b> · $1.03B</span>
+        <span><b>Fei-Fei Li</b> · $1.2B+</span>
+        <span><b>Jensen Huang</b> · NVIDIA Cosmos</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE OPENING -->
+<section id="opening">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The opening · 02</span>
+    <h2 class="title reveal in">Generative video is a slot machine.</h2>
+    <p class="lead reveal in">Brands and creative agencies cannot use raw text-to-video for client-grade production. The camera drifts, characters morph, and product geometry warps from shot to shot. Fixing these errors requires endless re-rolls, expensive VFX paint-outs, and manual cleanup.</p>
+    <div class="vs reveal in" style="margin-top:36px">
+      <div class="col now">
+        <div class="tag">Generative Video Today (Uncontrolled)</div>
+        <div class="metric"><span class="m-l">Spatial Composition</span><span class="m-v">Drifts &amp; Morphs</span></div>
+        <div class="metric"><span class="m-l">Camera Control</span><span class="m-v">Random / Approximated</span></div>
+        <div class="metric"><span class="m-l">Asset Consistency</span><span class="m-v">Unreliable / Warping</span></div>
+        <div class="metric"><span class="m-l">Production Cost</span><span class="m-v">High (due to re-rolls &amp; VFX)</span></div>
+      </div>
+      <div class="col new">
+        <div class="tag">Temporial (Controlled Render)</div>
+        <div class="metric"><span class="m-l">Spatial Composition</span><span class="m-v">Locked in 3D Previs</span></div>
+        <div class="metric"><span class="m-l">Camera Control</span><span class="m-v">Deterministic &amp; Smooth</span></div>
+        <div class="metric"><span class="m-l">Asset Consistency</span><span class="m-v">Locked via 3D Geometry</span></div>
+        <div class="metric"><span class="m-l">Production Cost</span><span class="m-v">Minimal (first-take success)</span></div>
+      </div>
+    </div>
+    <p class="lead reveal in" style="margin-top:34px">By injecting a 3D previs staging layer, we turn visual consistency from a random seed vibe into a <b style="color:var(--ink);font-weight:600">controllable, mathematical parameter</b> that creative agencies can dial in.</p>
+  </div>
+</section>
+
+<!-- THE PATTERN -->
+<section id="pattern" class="pattern">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The pattern · 03</span>
+    <h2 class="title reveal in">Jevons' Paradox and the new creator class.</h2>
+    <p class="lead reveal in">When you drop the friction and cost of a complex medium, you don't just get more of it—you completely redefine who can create. <strong>Canva</strong> took graphic design out of heavy desktop suites and unlocked a massive class of non-designer creators. <strong>Figma</strong> brought collaborative, browser-native design to entire teams. Temporial does the same for 3D previs and generative video.</p>
+    <div class="exp reveal in" style="margin-top:42px">
+      <div class="exp-left">
+        <div class="g-chart"><img src="assets/jevons_curve.png" alt="Graph showing cost vs demand" loading="lazy" decoding="async" /></div>
+      </div>
+      <div class="exp-right">
+        <div class="exp-sub">The Canva / Figma Moment for 3D Previs</div>
+        <h3>Unlocking the "AI Director"</h3>
+        <p>Before Canva, design required Photoshop. Before Figma, it was siloed. Today, 3D previs still requires complex desktop software (Blender, Unreal Engine) and specialized training. By moving previs entirely to a collaborative, browser-native canvas, we unlock a new class of <strong>AI Directors</strong>—creators, agencies, and writers who can block scenes, pilot cameras, and compile ground-truth tracks to render professional video in minutes.</p>
+        <div class="exp-cap">Each medium exploded the moment friction collapsed. 3D co-creation sits right at the inflection — and we're building the bridge.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE WEDGE -->
+<section id="wedge">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The hard part · 04</span>
+    <h2 class="title reveal in">Foundation models cannot guess what is in a director's head.</h2>
+    <p class="lead reveal in">Even the most advanced video models (like Seedance, Kling, or Veo) generate scenes from a text prompt using random seed distributions. They cannot guarantee that a product stays centered, that a camera orbits at exactly 45 degrees, or that a character maintains their exact face. The moment you need <em>precise creative control</em>, the prompt interface breaks.</p>
+    <div class="g2 reveal in" style="margin-top:38px">
+      <div class="card">
+        <span class="k">The prompt bottleneck</span>
+        <h3>The prompt bottleneck</h3>
+        <p>Text prompts are too low-bandwidth to describe complex 3D staging, camera trajectories, and brand color constraints. Trying to prompt your way to a specific camera path is a losing battle.</p>
+      </div>
+      <div class="card">
+        <span class="k">Why it's possible now</span>
+        <h3>The structural render bridge</h3>
+        <p>By compiling a browser-native 3D previs scene into ground-truth depth, optical flow, and camera tracks, we can feed control-adapted video models (Vid2Vid) with exact structural guidance.</p>
+      </div>
+    </div>
+    <div class="wedge reveal in">
+      <div class="eq">Temporial = <span class="x">3D Previs Staging</span> + <span class="y">Controlled Video Render</span></div>
+      <p>Instead of trying to build another video foundation model, we build the **structural control layer** on top of them. We give directors a zero-install, multiplayer 3D canvas to block shots and pilot cameras, then compile that geometry into exact conditioning signals that force commodity video models to behave. We are building the pipeline, the product, and the platform that turns generative video from a novelty into a predictable, professional production tool. That is our golden window.</p>
+    </div>
+  </div>
+</section>
+
+<!-- THE PRODUCT -->
+<section id="product">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The product · 05</span>
+    <h2 class="title reveal in">A professional 3D previs workspace. Built for the browser.</h2>
+    <p class="lead reveal in">No installs, no heavy downloads, no licensing friction. Temporial provides a lightweight, collaborative 3D stage that compiles directly into controlled video renders.</p>
+    <div class="pillars" style="margin-top:38px">
+      <div class="pillar reveal in" style="transition-delay:0s">
+        <span class="idx">01</span><h3>Browser-Native Staging</h3>
+        <div class="pdesc"><p>Drag and drop 3D proxies, position assets, and set up lighting in a fast WebGL viewport.</p></div>
+      </div>
+      <div class="pillar reveal in" style="transition-delay:.05s">
+        <span class="idx">02</span><h3>FPV Camera Piloting</h3>
+        <div class="pdesc"><p>Pilot cameras using game-style WASD + mouse-look with speed-adaptive smoothing.</p></div>
+      </div>
+      <div class="pillar reveal in" style="transition-delay:.1s">
+        <span class="idx">03</span><h3>Cinematic Motion Library</h3>
+        <div class="pdesc"><p>Apply professional camera presets like orbits, dolly-zooms, and whip-pans in one click.</p></div>
+      </div>
+      <div class="pillar reveal in" style="transition-delay:.15s">
+        <span class="idx">04</span><h3>Consistency Locks</h3>
+        <div class="pdesc"><p>Lock asset geometry and character identities using reference sheets and 3D proxies.</p></div>
+      </div>
+      <div class="pillar reveal in" style="transition-delay:.2s">
+        <span class="idx">05</span><h3>Multimodal Reference Deck</h3>
+        <div class="pdesc"><p>Chain style images, motion videos, and target keyframes to guide the generator.</p></div>
+      </div>
+      <div class="pillar reveal in" style="transition-delay:.25s">
+        <span class="idx">06</span><h3>Structural Compiler</h3>
+        <div class="pdesc"><p>Compile 3D scenes into clean depth, optical flow, and camera tracks for the model.</p></div>
+      </div>
+      <div class="pillar reveal in" style="transition-delay:.3s">
+        <span class="idx">07</span><h3>Variant Matrix</h3>
+        <div class="pdesc"><p>Generate and compare aspect ratio, duration, and asset-swapped cuts side-by-side.</p></div>
+      </div>
+    </div>
+    <div class="pillars-base reveal in">
+      <span class="bw">THE PREVIS BRIDGE</span>
+      <span class="bsub">3D Staging <span class="ar">+</span> Camera Piloting <span class="ar">→</span> Controlled Video Renders</span>
+    </div>
+    <p class="muted reveal in" style="margin-top:30px;max-width:64ch;font-size:.98rem">Robots learn faster on synthetic motion. NVIDIA measured a ~40% jump in task success from generated data, and Gartner expects synthetic data to go from ~20% of AI training today to over 90% by 2030.<sup class="cite"><a href="#r7">7</a></sup> Every one of those frames is an animated 3D asset that someone has to make.</p>
+  </div>
+</section>
+
+<!-- GENERATIVE VIDEO -->
+<section id="genvideo">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The core mechanism</span>
+    <h2 class="title reveal in">3D previs is the steering wheel for generative video.</h2>
+    <p class="lead reveal in">The industry is realizing that raw text-to-video is too unpredictable for professional pipelines. High-end video models (Seedance, Veo, Kling, Runway) produce beautiful pixels but lack shot-to-shot continuity. The solution is to drive the model with a 3D previs control track—translating camera trajectories, asset layouts, and consistency locks into ground-truth conditioning maps.</p>
+    <div class="g2 reveal in" style="margin-top:38px">
+      <div class="card">
+        <span class="k">The workflow</span>
+        <h3>Staging is the control signal</h3>
+        <p>Block your scene in our WebGL viewport, set up your camera keyframes, and assign consistency locks to your brand assets. The 3D scene stops being the final render and becomes the precise structural blueprint for the generative model.<sup class="cite"><a href="#r17">17</a></sup></p>
+      </div>
+      <div class="card">
+        <span class="k">The compilation</span>
+        <h3>Exact ground-truth maps</h3>
+        <p>Temporial compiles the 3D scene into aligned depth, optical flow, and camera intrinsics. By feeding these structural maps directly to control-adapted video models, we guarantee that the final render matches your previs layout exactly.</p>
+      </div>
+    </div>
+    <div class="wedge reveal in">
+      <div class="eq">Generative video <span class="x">doesn't replace</span> 3D previs — <span class="y">it requires it</span></div>
+      <p>The biggest creative unlock in AI video is not a better prompt; it is a **structural bridge**. We give directors the tools to author the scene's motion in 3D, and let the generative model handle the shading and texturing—yielding client-ready, on-brand variants on the first take.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE & PARADIGM -->
+<section id="architecture">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The Paradigm Shift · 05b</span>
+    <h2 class="title reveal in">Designed for the spatial co-creation paradigm.</h2>
+    <p class="lead reveal in">Temporial is not a traditional 3D editor, nor is it a simple AI wrapper. It is a custom-engineered spatial bridge built from the ground up to solve the prompt-to-video bottleneck.</p>
+    <div class="g3 reveal in" style="margin-top:38px">
+      <div class="card">
+        <span class="k">01 · Decoupled State Engine</span>
+        <h3>Stateless Diff &amp; Patch</h3>
+        <p>Instead of shipping heavy 3D scene files, Temporial represents the entire canvas as a lightweight, declarative JSON schema. The editor utilizes a high-performance diff/patch engine to sync granular entity-level locks and camera keyframes in real-time, enabling seamless multiplayer collaboration without the overhead of heavy 3D files.</p>
+      </div>
+      <div class="card">
+        <span class="k">02 · Deterministic Compiler</span>
+        <h3>Ground-Truth Structuring</h3>
+        <p>Our render compiler translates 3D scene states directly into mathematical conditioning tracks—including camera intrinsics, pixel-accurate depth maps, and optical flow. We don't render final pixels; we compile the spatial ground truth that forces diffusion models to remain 100% consistent.</p>
+      </div>
+      <div class="card">
+        <span class="k">03 · Browser-Native Stage</span>
+        <h3>Zero-Install WebGL</h3>
+        <p>By leveraging a stateless WebGL architecture, Temporial runs entirely in the browser with zero installation or licensing friction. Creative directors can instantly share a scene, block camera moves, and trigger renders from any device, bridging the gap between 3D design and AI generation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROOF -->
+<section id="proof" class="proof">
+  <div class="wrap">
+    <span class="eyebrow reveal in">Proof · 06</span>
+    <h2 class="title reveal in">What's already real.</h2>
+    <p class="lead reveal in">This is not vapor. Here's what I've already built.</p>
+    <!-- 1 · WORKING PROTOTYPE -->
+    <div class="proof-sub reveal in">The build</div>
+    <div class="proto-copy proto-lead reveal in">
+      <span class="proto-live">Pipeline running</span>
+      <h3>An image-to-4D pipeline — an early alpha, already running.</h3>
+      <p>Two real runs, end to end. The <b>character</b> goes from a 2D image to a textured 3D model to an animated, textured 4D output driven by generated video. The <b>character</b> runs the same loop on a realistic mesh, <b>topology and texture preserved</b>. It's early and far from perfect — but it's real, and it already does what the papers leave stuck in research: the image capture tooling, the image-to-3D handoff, the topology-consistent chaining, and the anti-drift that keeps long motion stable. We're at the frontier of the research; the job now is to productize it into something customers can use.</p>
+      <div class="paper-links">
+        <a href="https://github.com/facebookresearch/actionmesh" target="_blank" rel="noopener">ControlNet <span class="ax">→</span></a>
+        <a href="https://cvlab-kaist.github.io/SparseCtrl/" target="_blank" rel="noopener">SparseCtrl <span class="ax">→</span></a>
+        <a href="https://github.com/VAST-AI-Research/CameraCtrl" target="_blank" rel="noopener">CameraCtrl <span class="ax">→</span></a>
+        <a href="https://github.com/VAST-AI-Research/SkinTokens" target="_blank" rel="noopener">SkinTokens <span class="ax">→</span></a>
+      </div>
+    </div>
+
+    <div class="showcase reveal in">
+      <!-- 2 · COMMUNITY DEMOS -->
+    <div class="proof-sub reveal in" style="margin-top: 56px;">Community Demos</div>
+    <div class="proto-copy reveal in" style="margin-bottom: 32px;">
+      <h3>Controlling Video Diffusion with 3D Ground Truth</h3>
+      <p>Creators and directors are already using 3D blocking and previs to solve the consistency limits of generative video. By using rough 3D geometry, camera tracks, and facial rigs, they steer models like Seedance and ComfyUI with mathematical precision. Here is the proof of the workflow in action:</p>
+    </div>
+
+    <div class="g3 reveal in">
+      <!-- DEMO 1 -->
+      <div class="card demo-card">
+        <span class="k">Facial Performance Control</span>
+        <h3>Facial Rig to Generative Performance</h3>
+        <p>A creator animates a facial rig in Blender to drive ComfyUI and Seedance. Instead of relying on text prompts to guess expressions, the 3D rig drives the generative face, preserving micro-expressions and identity perfectly.</p>
+        <a class="btn btn-ghost btn-sm" href="https://www.reddit.com/r/comfyui/comments/1ufzhgu/spent_hours_animating_the_face_in_blender_for/" target="_blank" rel="noopener" style="margin-top: 12px; width: 100%; text-align: center;">View on Reddit ↗</a>
+      </div>
+
+      <!-- DEMO 2 -->
+      <div class="card demo-card">
+        <span class="k">Cinematic Camera Blocking</span>
+        <h3>Blocking Camera Moves in Blender</h3>
+        <p>Demonstrates how blocking a complex camera crane-out in Blender provides the perfect motion track. The generative model follows the camera path exactly, eliminating typical background warping and perspective drift.</p>
+        <a class="btn btn-ghost btn-sm" href="https://www.reddit.com/r/AtlasCloudAI/comments/1ufui99/blocking_the_camera_move_out_in_blender_first_is/" target="_blank" rel="noopener" style="margin-top: 12px; width: 100%; text-align: center;">View on Reddit ↗</a>
+      </div>
+
+      <!-- DEMO 3 -->
+      <div class="card demo-card">
+        <span class="k">Spatial Layout Translation</span>
+        <h3>Open-Source 3D Scene to Video</h3>
+        <p>Showcases new open-source pipelines that translate rough 3D gray-boxed scenes and layout cards into photorealistic, temporally consistent video renders, preserving the exact spatial composition across frames.</p>
+        <a class="btn btn-ghost btn-sm" href="https://www.reddit.com/r/TopologyAI/comments/1uhx4ge/new_opensource_ai_for_turning_3d_scenes_into/" target="_blank" rel="noopener" style="margin-top: 12px; width: 100%; text-align: center;">View on Reddit ↗</a>
+      </div>
+    </div>
+  </section>
+
+<!-- THE PRIZE -->
+<section id="market">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The prize · 07</span>
+    <h2 class="title reveal in">We sell picks to every gold rush at once.</h2>
+    <p class="lead reveal in">Temporial doesn't bet on which video foundation model wins. Be it Runway, Kling, Seedance, or open weights, we are the spatial control layer that makes them usable for professional production.</p>
+    <div class="stats reveal in" style="margin-top:42px">
+      <div class="stat">
+        <div class="v"><span class="grad" data-count="85.56" data-prefix="$" data-suffix="B">$85.56B</span></div>
+        <div class="l">Spatial computing market by 2030</div>
+        <div class="src">from $20.4B in 2025<sup class="cite"><a href="#r4">4</a></sup></div>
+      </div>
+      <div class="stat">
+        <div class="v"><span class="grad" data-count="75.9" data-prefix="$" data-suffix="B">$75.9B</span></div>
+        <div class="l">AR / VR market by 2030</div>
+        <div class="src">gaming &amp; entertainment ~52%<sup class="cite"><a href="#r5">5</a></sup></div>
+      </div>
+      <div class="stat">
+        <div class="v"><span class="grad" data-count="80.1" data-prefix="$" data-suffix="B">$80.1B</span></div>
+        <div class="l">Generative-AI content market by 2030</div>
+        <div class="src">~32.5% CAGR<sup class="cite"><a href="#r6">6</a></sup></div>
+      </div>
+      <div class="stat">
+        <div class="v"><span class="grad" data-count="90" data-suffix="%">90%</span></div>
+        <div class="l">Of AI training data synthetic by 2030</div>
+        <div class="src">up from ~20% today<sup class="cite"><a href="#r7">7</a></sup></div>
+      </div>
+    </div>
+    <!-- THE PULL -->
+    <div class="proof-sub reveal in">The market pull</div>
+    <div class="g3 reveal in" style="margin-top:4px">
+      <div class="card">
+        <span class="k">Creative Agencies</span>
+        <div class="big">65%+</div>
+        <h3>Of digital ad spend is moving to video.</h3>
+        <p class="stat-claim">Ad agencies are rushing to adopt generative video, but clients reject shots with warping, drifting logos, or inconsistent faces. Control is the blocker.<sup class="cite"><a href="#r13">13</a></sup></p>
+      </div>
+      <div class="card">
+        <span class="k">Production Studios</span>
+        <div class="big">10x</div>
+        <h3>Faster turnaround on client review cycles.</h3>
+        <p class="stat-claim">Instead of waiting days for VFX cleanup or rendering dozens of random seeds, directors block the shot in 3D once and render consistent variants instantly.<sup class="cite"><a href="#r14">14</a></sup></p>
+      </div>
+      <div class="card">
+        <span class="k">Enterprise Brands</span>
+        <div class="big">100%</div>
+        <h3>Brand asset and identity preservation.</h3>
+        <p class="stat-claim">Locking product dimensions and brand guidelines directly in 3D ensures that the generated output is on-brand and legal-approved on the first take.<sup class="cite"><a href="#r7">7</a></sup></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT ANDREW -->
+<section id="about">
+  <div class="wrap">
+    <span class="eyebrow reveal in">About Andrew · 08</span>
+    <div class="why-panel reveal in">
+      <div class="why-head">
+        <div class="who">Seat 03 · COO</div>
+        <h3>I've done the operator job — 0→1 and at scale.</h3>
+      </div>
+      <div class="why-list">
+        <div class="row"><div class="rk">Started one</div><div class="rv"><b>Co-founded GamerDraft</b>, an esports platform, and built it 0→1 to <b>4,000 paying users</b>.</div></div>
+        <div class="row"><div class="rk">Scaled two</div><div class="rv">Solutions engineering at <b>Trulioo</b> (identity &amp; compliance infrastructure) and <b>Workato</b> (enterprise automation) — building complex technical product and selling it into <b>enterprise customers</b>, turning something complicated into something a buyer gets in five minutes.</div></div>
+        <div class="row"><div class="rk">Sales &amp; GTM</div><div class="rv">Pre-sales, enablement and enterprise deals are the job I do today: mapping a product into a customer's stack, then proving it works. That's the revenue motion this company runs on.</div></div>
+        <div class="row"><div class="rk">Ran the engine</div><div class="rv">Coordinated operations for <b>hundreds of people</b> across Accenture and Google, and designed incentive systems that pushed teams past target — org design, finance, execution.</div></div>
+        <div class="row"><div class="rk">Built for people</div><div class="rv">Ran <b>WheelPower</b>, building accessibility products alongside Paralympian Jason Chee — partnerships and human-centered product, end to end.</div></div>
+        <div class="row"><div class="rk">Connected</div><div class="rv">English and Mandarin; operating across <b>Singapore, Shanghai and Vancouver</b>, a live network spanning the markets and talent this company has to reach.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE TEAM -->
+<section id="team">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The team · 09</span>
+    <h2 class="title reveal in">I'm looking for winners who go after their goals relentlessly.</h2>
+    <p class="lead reveal in">I'm not hiring. I'm choosing two partners and handing each of you equal stakes. I'm not looking for a polished resume. I'm looking for hungry, curious, AI-native builders who'd rather learn by doing than wait for permission. Three technical founders, three lanes of ownership.</p>
+    <div class="roles reveal in" style="margin-top:40px">
+      <div class="role">
+        <div class="seat">Seat 01</div><h3>CEO</h3><div class="who">Product &amp; vision</div>
+        <ul><li>Own the product, the roadmap and the user</li><li>Own the story, the vision and direction</li><li>Lead the raise and investor relationships</li></ul>
+      </div>
+      <div class="role">
+        <div class="seat">Seat 02</div><h3>CTO</h3><div class="who">Tech, infra &amp; research</div>
+        <ul><li>Own the stack, the infra and the technical bar</li><li>Turn frontier video control papers into production code</li><li>Build the spatial-consistency and render compiler moat</li></ul>
+      </div>
+      <div class="role mine">
+        <div class="seat">Seat 03 · ANDREW</div><h3>COO</h3><div class="who">The business engine</div>
+        <ul><li>GTM, enterprise sales &amp; partnerships</li><li>Finance, compliance &amp; corp affairs</li><li>Hiring, org design &amp; operations</li></ul>
+      </div>
+    </div>
+    <div class="equity reveal in">
+      <div class="split">
+        <div class="third"><div class="p">⅓</div><div class="who">CEO</div></div>
+        <span class="x">·</span>
+        <div class="third"><div class="p">⅓</div><div class="who">CTO</div></div>
+        <span class="x">·</span>
+        <div class="third"><div class="p">⅓</div><div class="who">Ops</div></div>
+      </div>
+      <div class="note"><b>Equal thirds.</b> Simple, clean, accelerated founder vesting terms. 10% reserved for early employees.</div>
+    </div>
+    <div class="nope reveal in">
+      <p>This isn't for everyone. But if you'd rather <b>own a company today</b> than <b>work for someone else three years down the road</b>, you're exactly who I'm looking for. Ground-floor seats on a rocketship don't come around twice.</p>
+    </div>
+  </div>
+</section>
+
+<!-- THE PLAN -->
+<section id="plan">
+  <div class="wrap">
+    <span class="eyebrow reveal in">The plan · 10</span>
+    <h2 class="title reveal in">What the first 100 days look like.</h2>
+    <p class="lead reveal in">Three concrete milestones for our first hundred days: a working product, real revenue, and capital in the bank.</p>
+    <div class="tlwrap reveal in">
+      <div class="tl">
+        <div class="tl-item">
+          <div class="dot"></div>
+          <div class="ph">Milestone 01 · The build</div>
+          <h3>Robust previs editor &amp; render compiler</h3>
+          <p>Today we have a working previs editor and render compiler. The first hundred days harden it into a robust, end-to-end bridge — supporting more video models, advanced camera interpolation, and team collaboration.</p>
+        </div>
+        <div class="tl-item">
+          <div class="dot"></div>
+          <div class="ph">Milestone 02 · Traction</div>
+          <h3>First paying customers</h3>
+          <p>100 paying customers on the consumer product, or one mid-market or enterprise customer signed. Real revenue and real usage, not a waitlist.</p>
+        </div>
+        <div class="tl-item">
+          <div class="dot"></div>
+          <div class="ph">Milestone 03 · Capital</div>
+          <h3>Raise the seed</h3>
+          <p>Close a seed round: into a top-tier incubator like Y Combinator, or seed funding from a top-tier VC. We walk in with product and traction, not slides.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- THE ASK -->
+<section id="ask" class="final">
+  <img class="echo" src="assets/logo-mark.svg" alt="" aria-hidden="true">
+  <div class="wrap">
+    <span class="eyebrow reveal in" style="display:inline-flex">The ask · 11</span>
+    <h2 class="reveal in">The window is open <span class="grad">now</span>.</h2>
+    <p class="lead reveal in">A multi-billion-dollar market is racing toward spatial AI, but the asset layer underneath it is not yet perfect. The ones who dare to experiment and <b style="color:var(--ink);font-weight:600">ship what's not perfect will win</b>. That narrow window is <b style="color:var(--ink);font-weight:600">open right now</b>, and it slams shut the moment the giants generalize down into it. It's an opportunity to be <b style="color:var(--ink);font-weight:600">the supplier whole industries depend on</b>. This is our time to act before it gets crowded.</p>
+    <div class="cta-row reveal in" style="justify-content:center">
+      <a class="btn btn-primary" href="https://andtay.com">Seize the moment →</a>
+      <a class="btn btn-ghost" href="#top">Back to the top</a>
+    </div>
+    <div class="small reveal in">Temporial · the 3D previs &amp; render bridge</div>
+  </div>
+</section>
+
+<!-- REFERENCES -->
+<section style="padding-top:0">
+  <div class="wrap refs">
+    <h4>The receipts: every figure on this page is public</h4>
+    <div class="ref-grid">
+      <a id="r1" href="https://www.startuphub.ai/ai-news/ai-figures/2026/figure-fei-fei-li-company-financial-breakdown-2026-06-03" target="_blank" rel="noopener"><span class="n">1</span><span>World Labs raises $1.2B+; Marble shipping · StartupHub / The AI Insider, 2026</span></a>
+      <a id="r2" href="https://www.startuphub.ai/ai-news/ai-figures/2026/figure-yann-lecun-ami-labs-company-breakdown-2026-05-29" target="_blank" rel="noopener"><span class="n">2</span><span>Yann LeCun's AMI Labs raises $1.03B at $3.5B · StartupHub, 2026</span></a>
+      <a id="r3" href="https://www.nvidia.com/en-us/ai/cosmos/" target="_blank" rel="noopener"><span class="n">3</span><span>NVIDIA Cosmos: world foundation models for physical AI</span></a>
+      <a id="r4" href="https://www.grandviewresearch.com/industry-analysis/generative-ai-video-market-report" target="_blank" rel="noopener"><span class="n">4</span><span>Generative AI video market size projected to reach $22.5B by 2030 · Grand View Research</span></a>
+      <a id="r5" href="https://www.statista.com/outlook/amo/ai-video-production/worldwide/" target="_blank" rel="noopener"><span class="n">5</span><span>AI-enabled video production market size ~$15.4B by 2030 · Statista</span></a>
+      <a id="r6" href="https://www.grandviewresearch.com/industry-analysis/generative-ai-content-creation-market-report" target="_blank" rel="noopener"><span class="n">6</span><span>Generative-AI content creation ~$80.1B by 2030 · Grand View</span></a>
+      <a id="r7" href="https://arxiv.org/abs/2312.02980" target="_blank" rel="noopener"><span class="n">7</span><span>AnimateDiff: Animate Your Personalized Text-to-Image Diffusion Models · arXiv 2312.02980</span></a>
+      <a id="r8" href="https://arxiv.org/abs/2403.14627" target="_blank" rel="noopener"><span class="n">8</span><span>CameraCtrl: Camera Control for Text-to-Video Diffusion Models · arXiv 2403.14627</span></a>
+      <a id="r9" href="https://arxiv.org/abs/2308.06721" target="_blank" rel="noopener"><span class="n">9</span><span>IP-Adapter: Text-Compatible Image Prompt Adapter for Text-to-Image Diffusion · arXiv 2308.06721</span></a>
+      <a id="r10" href="https://arxiv.org/abs/2408.06070" target="_blank" rel="noopener"><span class="n">10</span><span>Direct3D: Scalable 3D Generative Model from Single-View Images · arXiv 2408.06070</span></a>
+      <a id="r11" href="https://arxiv.org/abs/2412.01800" target="_blank" rel="noopener"><span class="n">11</span><span>A Survey on Video Diffusion Models: Layout, Camera, and Motion Control</span></a>
+      <a id="r12" href="https://www.grandviewresearch.com/industry-analysis/humanoid-robot-market-report" target="_blank" rel="noopener"><span class="n">12</span><span>Humanoid robot market $1.55B to $4.04B by 2030 · Grand View</span></a>
+      <a id="r13" href="https://www.insiderintelligence.com/content/digital-video-ad-spending-forecast" target="_blank" rel="noopener"><span class="n">13</span><span>Digital video ad spending forecast to exceed $120B by 2026 · Insider Intelligence</span></a>
+      <a id="r14" href="https://arxiv.org/abs/2302.05543" target="_blank" rel="noopener"><span class="n">14</span><span>Adding Conditional Control to Text-to-Image Diffusion Models (ControlNet) · arXiv 2302.05543</span></a>
+      <a id="r15" href="https://arxiv.org/abs/2410.08200" target="_blank" rel="noopener"><span class="n">15</span><span>SparseCtrl: Adding Sparse Control Signals to Video Diffusion Models · arXiv 2410.08200</span></a>
+      <a id="r16" href="https://journal.everypixel.com/ai-image-statistics" target="_blank" rel="noopener"><span class="n">16</span><span>~15B AI images generated since 2022; ~34M/day · Everypixel Journal, AI Image Statistics</span></a>
+      <a id="r17" href="https://arxiv.org/abs/2602.03838" target="_blank" rel="noopener"><span class="n">17</span><span>PrevizWhiz: rough 3D scenes + 2D video to guide generative video previsualization · CHI 2026, arXiv 2602.03838</span></a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="foot-in">
+    <a class="brand" href="#top"><img src="assets/logo-mark.svg" alt="Temporial"><span class="wm">Temporial</span></a>
+    <div class="t">A once-in-a-lifetime opportunity. Figures cite public research and market reports (see the receipts). Forward-looking statements are projections, not guarantees.</div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ===================== SCROLL VIDEO ===================== */
+  var VIDEO_URL = 'assets/flower_video.mp4';
+  var canvas = document.getElementById('video-canvas');
+  var videoEl = document.getElementById('video-fallback');
+  var ctx = canvas.getContext('2d');
+  var frames = [];
+  var framesReady = false;
+  var lastFrameIndex = -1;
+  var videoSeeking = false;
+
+  function resizeCanvas(){
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var rect = canvas.getBoundingClientRect();
+    var w = Math.round(rect.width * dpr), h = Math.round(rect.height * dpr);
+    if (canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; }
+    lastFrameIndex = -1;
+  }
+
+  // map full-page scroll position to 0..1
+  function getProgress(){
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+    return h > 0 ? Math.max(0, Math.min(1, y / h)) : 0;
+  }
+
+  function drawFrame(frame){
+    var cw = canvas.width, ch = canvas.height;
+    var s = Math.max(cw / frame.width, ch / frame.height);
+    var dw = frame.width * s, dh = frame.height * s;
+    ctx.drawImage(frame, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+  }
+
+  async function extractFrames(){
+    try{
+      var response = await fetch(VIDEO_URL, { mode:'cors' });
+      if(!response.ok) throw new Error('fetch failed');
+      var blob = await response.blob();
+      var objectUrl = URL.createObjectURL(blob);
+      var video = document.createElement('video');
+      video.muted = true; video.playsInline = true; video.crossOrigin = 'anonymous';
+      video.preload = 'auto'; video.src = objectUrl;
+      await new Promise(function(resolve, reject){
+        video.onloadedmetadata = function(){ resolve(); };
+        video.onerror = function(){ reject(); };
+        setTimeout(function(){ reject(); }, 15000);
+      });
+      var scale = Math.min(1, 1280 / video.videoWidth);
+      var scaledWidth = Math.round(video.videoWidth * scale);
+      var scaledHeight = Math.round(video.videoHeight * scale);
+      var frameCount = Math.max(30, Math.min(120, Math.round(video.duration * 24)));
+      for (var i = 0; i < frameCount; i++){
+        var time = (i / (frameCount - 1)) * (video.duration - 0.05);
+        video.currentTime = time;
+        await new Promise(function(resolve, reject){
+          var onSeeked = function(){ video.removeEventListener('seeked', onSeeked); resolve(); };
+          video.addEventListener('seeked', onSeeked);
+          setTimeout(function(){ video.removeEventListener('seeked', onSeeked); reject(); }, 3000);
+        });
+        var bitmap = await createImageBitmap(video, { resizeWidth: scaledWidth, resizeHeight: scaledHeight });
+        frames.push(bitmap);
+      }
+      if (frames.length > 0){
+        framesReady = true;
+        canvas.style.visibility = 'visible';
+        videoEl.style.display = 'none';
+      }
+      URL.revokeObjectURL(objectUrl);
+    }catch(e){ /* keep the <video> seeking fallback */ }
+  }
+
+  function videoTick(){
+    var progress = getProgress();
+    if (framesReady && frames.length > 0){
+      var idx = Math.round(progress * (frames.length - 1));
+      if (idx !== lastFrameIndex){ lastFrameIndex = idx; if (frames[idx]) drawFrame(frames[idx]); }
+    } else if (videoEl.duration && isFinite(videoEl.duration) && videoEl.readyState >= 1){
+      var target = progress * videoEl.duration;
+      if (!videoSeeking && Math.abs(videoEl.currentTime - target) > 0.001){
+        videoSeeking = true; videoEl.currentTime = target;
+      }
+    }
+    requestAnimationFrame(videoTick);
+  }
+
+  videoEl.addEventListener('seeked', function(){ videoSeeking = false; });
+  videoEl.addEventListener('stalled', function(){ videoSeeking = false; });
+  videoEl.addEventListener('loadeddata', function(){ try{ videoEl.currentTime = 0; }catch(e){} });
+
+  if (rm){
+    // reduced motion: hold a still frame, no scrubbing
+    canvas.style.visibility = 'hidden';
+  } else {
+    canvas.style.visibility = 'hidden';
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas, { passive:true });
+    requestAnimationFrame(videoTick);
+    // Frame extraction needs fetch(), which is blocked for local files on file://.
+    // Only use it when served over http(s); otherwise scrub the <video> element directly.
+    if (location.protocol === 'http:' || location.protocol === 'https:') {
+      extractFrames();
+    }
+  }
+
+  /* ===================== PARTICLES ===================== */
+  var pCanvas = document.getElementById('particles');
+  var pCtx = pCanvas.getContext('2d');
+  var particles = [];
+  function resizeParticles(){ pCanvas.width = window.innerWidth; pCanvas.height = window.innerHeight; createParticles(); }
+  function createParticles(){
+    particles = [];
+    var count = Math.floor((pCanvas.width * pCanvas.height) / 14000);
+    for (var i = 0; i < count; i++){
+      particles.push({
+        x: Math.random() * pCanvas.width, y: Math.random() * pCanvas.height,
+        vx: (Math.random() - 0.5) * 0.25, vy: (Math.random() - 0.5) * 0.25,
+        size: Math.random() * 1.4 + 0.4, opacity: Math.random() * 0.5 + 0.15
+      });
+    }
+  }
+  function drawParticles(){
+    pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+    for (var i = 0; i < particles.length; i++){
+      var p = particles[i];
+      pCtx.beginPath(); pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      pCtx.fillStyle = 'rgba(170,200,255,' + p.opacity + ')'; pCtx.fill();
+    }
+  }
+  function animateParticles(){
+    pCtx.clearRect(0, 0, pCanvas.width, pCanvas.height);
+    for (var i = 0; i < particles.length; i++){
+      var p = particles[i];
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < 0) p.x = pCanvas.width; if (p.x > pCanvas.width) p.x = 0;
+      if (p.y < 0) p.y = pCanvas.height; if (p.y > pCanvas.height) p.y = 0;
+      pCtx.beginPath(); pCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      pCtx.fillStyle = 'rgba(170,200,255,' + p.opacity + ')'; pCtx.fill();
+    }
+    requestAnimationFrame(animateParticles);
+  }
+  resizeParticles();
+  window.addEventListener('resize', resizeParticles, { passive:true });
+  if (rm){ drawParticles(); } else { animateParticles(); }
+
+  /* ===================== PROGRESS + NAV ===================== */
+  var nav = document.getElementById('nav'), prog = document.getElementById('progress');
+  function onScroll(){
+    var st = window.pageYOffset || document.documentElement.scrollTop;
+    var h = document.documentElement.scrollHeight - window.innerHeight;
+    prog.style.width = (h > 0 ? (st / h * 100) : 0) + '%';
+    nav.classList.toggle('scrolled', st > 24);
+  }
+  window.addEventListener('scroll', onScroll, { passive:true }); onScroll();
+
+  /* ===================== REVEAL ===================== */
+  var reveals = [].slice.call(document.querySelectorAll('.reveal, .blurin'));
+  if ('IntersectionObserver' in window && !rm){
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold:.12, rootMargin:'0px 0px -8% 0px' });
+    reveals.forEach(function(el){ io.observe(el); });
+  } else { reveals.forEach(function(el){ el.classList.add('in'); }); }
+
+  /* ===================== COUNT-UP ===================== */
+  function fmt(n, dec){ return n.toLocaleString('en-US', { minimumFractionDigits:dec, maximumFractionDigits:dec }); }
+  function animateCount(el){
+    var raw = el.getAttribute('data-count');
+    var target = parseFloat(raw);
+    var dec = (raw.split('.')[1] || '').length;
+    var pre = el.getAttribute('data-prefix') || '', suf = el.getAttribute('data-suffix') || '';
+    if (rm){ el.textContent = pre + fmt(target, dec) + suf; return; }
+    var dur = 1500, t0 = null;
+    function step(ts){
+      if (!t0) t0 = ts;
+      var p = Math.min((ts - t0) / dur, 1);
+      var e = 1 - Math.pow(1 - p, 3);
+      el.textContent = pre + fmt(target * e, dec) + suf;
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  var counts = [].slice.call(document.querySelectorAll('[data-count]'));
+  if ('IntersectionObserver' in window){
+    var io2 = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if (e.isIntersecting){ animateCount(e.target); io2.unobserve(e.target); } });
+    }, { threshold:.6 });
+    counts.forEach(function(el){ io2.observe(el); });
+  } else { counts.forEach(animateCount); }
+})();
+</script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
